@@ -121,12 +121,15 @@ pWhile = do
 
 -- | the `pSpace` function parses / skips a space token
 pSpace :: Parser PEnv LToken 
-pSpace = undefined -- fixme
+pSpace = sat (\tok -> case tok of
+    { WhiteSpace _ _ -> True
+    ; _ -> False
+    }) "expecting a whitespace token but none is found."
 
 
 -- | the `pSpaces` function parses / skips zero or more space tokens
 pSpaces :: Parser PEnv [LToken]
-pSpaces = undefined -- fixme
+pSpaces = many pSpace
 
 -- Lab 1 Task 1.1 end 
 
@@ -140,7 +143,147 @@ pSpaces = undefined -- fixme
 
 -- | the `pExp` function parses an expression
 pExp :: Parser PEnv Exp 
-pExp = undefined -- fixme
+pExp = do
+    leForm <- pExpLE
+    return (fromLE leForm)
+
+fromLE :: ExpLE -> Exp
+fromLE (VarExpLE var expLEP) = fromLEP (VarExp var) expLEP
+fromLE (ConstExpLE c expLEP) = fromLEP (ConstExp c) expLEP
+fromLE (ParenExpLE expLE expLEP) = fromLEP (ParenExp (fromLE expLE)) expLEP
+
+fromLEP :: Exp -> ExpLEP -> Exp
+fromLEP t1 (PlusLEP expLE expLEP) =
+    let t2 = Plus t1 (fromLE expLE)
+    in fromLEP t2 expLEP
+fromLEP t1 (MinusLEP expLE expLEP) =
+    let t2 = Minus t1 (fromLE expLE)
+    in fromLEP t2 expLEP
+fromLEP t1 (MultLEP expLE expLEP) =
+  let t2 = Mult t1 (fromLE expLE)
+   in fromLEP t2 expLEP
+fromLEP t1 (DEqualLEP expLE expLEP) =
+  let t2 = DEqual t1 (fromLE expLE)
+   in fromLEP t2 expLEP
+fromLEP t1 (LThanLEP expLE expLEP) =
+  let t2 = LThan t1 (fromLE expLE)
+   in fromLEP t2 expLEP
+fromLEP t1 EpsilonLEP = t1
+    
+
+pExpLE :: Parser PEnv ExpLE
+pExpLE = choice pVarExpLE (choice pConstExpLE pParenExpLE)
+
+pVarExpLE :: Parser PEnv ExpLE
+pVarExpLE = do
+    pSpaces
+    v <- pVar
+    pSpaces
+    expLEP <- pExpLEP
+    pSpaces
+    return (VarExpLE v expLEP)
+
+pConstExpLE :: Parser PEnv ExpLE
+pConstExpLE = do
+    pSpaces
+    c <- pConst
+    pSpaces
+    expLEP <- pExpLEP
+    pSpaces
+    return (ConstExpLE c expLEP)
+
+pParenExpLE :: Parser PEnv ExpLE
+pParenExpLE = do
+    pSpaces
+    pLParen
+    pSpaces
+    expLE <- pExpLE
+    pSpaces
+    pRParen
+    pSpaces
+    expLEP <- pExpLEP
+    pSpaces
+    return (ParenExpLE expLE expLEP)
+
+pExpLEP :: Parser PEnv ExpLEP
+pExpLEP = do
+    opTerm <- optional pExpLEPOpTerm
+    case opTerm of
+        Left _ -> return EpsilonLEP
+        Right t -> return t
+
+pExpLEPOpTerm :: Parser PEnv ExpLEP
+pExpLEPOpTerm = choice pPlusLEP (choice pMinusLEP (choice pMultLEP (choice pDEqualLEP pLThanLEP)))
+
+pPlusLEP :: Parser PEnv ExpLEP
+pPlusLEP = do
+    pSpaces
+    pPlus
+    pSpaces
+    e1 <- pExpLE
+    pSpaces
+    e2 <- pExpLEP
+    pSpaces
+    return (PlusLEP e1 e2)
+
+pMinusLEP :: Parser PEnv ExpLEP
+pMinusLEP = do
+    pSpaces
+    pMinus
+    pSpaces
+    e1 <- pExpLE
+    pSpaces
+    e2 <- pExpLEP
+    pSpaces
+    return (MinusLEP e1 e2)
+
+pMultLEP :: Parser PEnv ExpLEP
+pMultLEP = do
+    pSpaces
+    pMult
+    pSpaces
+    e1 <- pExpLE
+    pSpaces
+    e2 <- pExpLEP
+    pSpaces
+    return (MultLEP e1 e2)
+
+pDEqualLEP :: Parser PEnv ExpLEP
+pDEqualLEP = do
+    pSpaces
+    pDEqual
+    pSpaces
+    e1 <- pExpLE
+    pSpaces
+    e2 <- pExpLEP
+    pSpaces
+    return (DEqualLEP e1 e2)
+
+pLThanLEP :: Parser PEnv ExpLEP
+pLThanLEP = do
+    pSpaces
+    pLThan
+    pSpaces
+    e1 <- pExpLE
+    pSpaces
+    e2 <- pExpLEP
+    pSpaces
+    return (LThanLEP e1 e2)
+
+data ExpLE
+    = VarExpLE Var ExpLEP
+    | ConstExpLE Const ExpLEP
+    | ParenExpLE ExpLE ExpLEP
+
+data ExpLEP
+    = PlusLEP ExpLE ExpLEP
+    | MinusLEP ExpLE ExpLEP
+    | MultLEP ExpLE ExpLEP
+    | DEqualLEP ExpLE ExpLEP
+    | LThanLEP ExpLE ExpLEP
+    | EpsilonLEP
+
+
 -- Lab 1 Task 1.2 end 
 
 
