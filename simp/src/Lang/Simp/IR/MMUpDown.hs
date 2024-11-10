@@ -171,6 +171,17 @@ instance Cogen Stmt where
             G(while cond {body}) |- down_cond ++ instrs1 ++ instrs2'
 
     -}
-    While cond body -> undefined -- fixme
+    While cond body -> do
+      lblBWhile <- chkNextLabel
+      (condResult, instrsCond) <- cogenExp cond
+      lblWhileCj <- newLabel
+      instrsBody <- cogen body
+      lblEndBody <- newLabel
+      lblEndWhile <- chkNextLabel
+      -- condition jump, if condition is false go to end of loop
+      let instrs1 = [(lblWhileCj, IIfNot condResult lblEndWhile)]
+      -- append a jump back to start of loop after the body
+      let instrs2' = instrsBody ++ [(lblEndBody, IGoto lblBWhile)]
+      return $ instrsCond ++ instrs1 ++ instrs2'
 
 -- Lab 1 Task 2.2 end
