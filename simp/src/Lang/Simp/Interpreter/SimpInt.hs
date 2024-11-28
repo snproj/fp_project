@@ -38,8 +38,10 @@ evalExp dlt (Plus e1 e2)    = do
     c2 <- evalExp dlt e2
     plusConst c1 c2
 -- Lab 2 Task 1.1 
-evalExp dlt (VarExp v)      = undefined -- fixme
-evalExp dlt (ParenExp e)    = undefined -- fixme
+evalExp dlt (VarExp v)      = case DM.lookup v dlt of
+    Just res -> Right res
+    Nothing -> Left "ERROR: Variable not defined!"
+evalExp dlt (ParenExp e)    = evalExp dlt e
 -- Lab 2 Task 1.1 end
 
 
@@ -52,7 +54,7 @@ class Evaluable a where
 instance Evaluable a => Evaluable [a] where
     eval dlt [] = Right dlt
     -- Lab 2 Task 1.2 
-    eval dlt (x:xs) = undefined -- fixme 
+    eval dlt (x:xs) = foldM eval dlt (x:xs)
     -- Lab 2 Task 1.2 end
 
 
@@ -70,7 +72,15 @@ instance Evaluable Stmt where
                 | otherwise -> eval dlt el
     eval dlt (Ret x)        = Right dlt
     -- Lab 2 Task 1.2 
-    eval dlt (While cond s) = undefined -- fixme
+    eval dlt (While cond s) = do
+        c <- evalExp dlt cond
+        case c of
+            IntConst _      -> Left "int expression found in the if condition position."
+            BoolConst b
+                | b         -> do
+                    dlt' <- eval dlt s
+                    eval dlt' (While cond s)
+                | otherwise -> Right dlt
     -- Lab 2 Task 1.2 end 
 
 
