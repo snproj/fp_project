@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ImportQualifiedPost #-}
 
 module Lang.Simp.Semantics.TypeInf where
 
@@ -55,21 +56,26 @@ class Substitutable a where
 -- | apply type subst to an extended type
 -- Lab 2 Task 2.1
 instance Substitutable ExType where
-  applySubst = undefined -- fixme
-  -- Lab 2 Task 2.1 end
+  -- empty, no sub
+  applySubst Empty exType = exType
+  applySubst (RevComp (name, ty) ts) exType = case exType of
+    TypeVar n | n == name -> applySubst ts ty
+    _ -> applySubst ts exType
+
+-- Lab 2 Task 2.1 end
 
 instance (Substitutable a, Substitutable b) => Substitutable (a, b) where
   applySubst psi (a, b) = (applySubst psi a, applySubst psi b)
 
 instance (Substitutable a) => Substitutable [a] where
-  applySubst psi as = map (applySubst psi) as
+  applySubst psi = map (applySubst psi)
 
 -- | type inference type class
 class Infer a where
   infer :: a -> TypeConstrs
 
 instance (Infer a) => Infer [a] where
-  infer as = foldl (\acc a -> DS.union acc (infer a)) DS.empty as
+  infer = foldl (\acc a -> DS.union acc (infer a)) DS.empty
 
 instance Infer Stmt where
   infer Nop = DS.empty
@@ -80,9 +86,21 @@ instance Infer Stmt where
           (exTy, k) -> DS.insert (alphax, exTy) k
   infer (Ret x) = DS.empty
   -- Lab 2 Task 2.3
-  infer (While cond b) = undefined -- fixme
-  infer (If cond th el) = undefined -- fixme
-  -- Lab 2 Task 2.3 end
+  infer (While cond b) =
+    let (condType, condConstraint) = inferExp cond
+        boolConstraint = (condType, MonoType BoolTy)
+        bodyK = infer b
+     in DS.insert boolConstraint (condConstraint `DS.union` bodyK)
+  infer (If cond th el) =
+    let (condType, condConstraint) = inferExp cond
+        boolConstraint = (condType, MonoType BoolTy)
+        thConstraint = infer th
+        elConstraint = infer el
+        allConstraints = condConstraint `DS.union` thConstraint `DS.union` elConstraint
+        thElConstraint = (TypeVar "th", TypeVar "el") -- ensures then and else blocks have same type
+     in DS.insert boolConstraint (DS.insert thElConstraint allConstraints)
+
+-- Lab 2 Task 2.3 end
 
 inferExp :: Exp -> (ExType, TypeConstrs)
 inferExp (ConstExp (IntConst v)) = (MonoType IntTy, DS.empty)
@@ -127,13 +145,23 @@ class Unifiable a where
 -- | unify two extypes
 -- Lab 2 Task 2.2
 instance Unifiable (ExType, ExType) where
-  mgu (exTy1, exTy2) = Left ("error: unable to unify " ++ show exTy1 ++ " with " ++ show exTy2) -- fixme
+  mgu (MonoType t1, MonoType t2)
+    | t1 == t2 = Right Empty
+    | otherwise = Left ("error: unable to unify " ++ show t1 ++ " with " ++ show t2)
+  mgu (TypeVar n, ty)
+    | TypeVar n == ty = Right Empty -- alr subbed
+    | otherwise = Right (singleton n ty) -- sub TypeVar n with ty (singleton does single sub)
+  mgu (ty, TypeVar n) = mgu (TypeVar n, ty) -- handling mgu(alpha, T) == mgu(T, alpha)
 
 -- | unifying a list of unifaibles
 instance (Unifiable a, Substitutable a) => Unifiable [a] where
   mgu [] = Right Empty
-  mgu (x : xs) = undefined -- fixme
-  -- Lab 2 Task 2.2 end
+  mgu (x : xs) = do
+    subst1 <- mgu x
+    subst2 <- mgu (map (applySubst subst1) xs)
+    return (compose subst1 subst2)
+
+-- Lab 2 Task 2.2 end
 
 -- | unifying a set of type constraints (i.e. a set of (ExType, ExType))
 instance Unifiable TypeConstrs where
