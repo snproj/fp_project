@@ -216,6 +216,6 @@ analyze p =
     let f                 = genMonotoneFunction p 
         vars              = DS.toList $ DS.fromList (concatMap (allVars . snd) p)
         labels            = map fst p
-        initAbstractState = DM.fromList (map (\v -> (v,Top)) vars)
+        initAbstractState = DM.fromList (map (\v -> (v,Bot)) vars)
         initAbstractEnv   = DM.fromList (map (\l -> (l,initAbstractState)) labels)
     in naiveFP f initAbstractEnv
