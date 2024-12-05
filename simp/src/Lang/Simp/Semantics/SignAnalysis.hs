@@ -64,7 +64,7 @@ genMonotoneFunction p =
             sign <- getOprSign joinedPredsStates src
             return (DM.insert label (DM.insert t sign joinedPredsStates ) acc)
         -- Cohort Problem 10 Exercise 3 TODO 
-        -- ^ case l: t <- src1 op src2:  s_l = join(s_l)[t -> join(s_l)(src1) abs(op) join(s_l)(src1)]
+        -- ^ case l: t <- src1 op src2:  s_l = join(s_l)[t -> join(s_l)(src1) abs(op) join(s_l)(src2)]
         -- ^ other cases: s_l = join(s_l)
         instrState acc (label, _) = undefined -- fixme     
         -- Cohort Problem 10 Exercise 3 END 
