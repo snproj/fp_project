@@ -47,7 +47,17 @@ insertPhis pa dft g =
       labelsModdedVars = map modVars pa
       -- Lab 3 Task 1.2 TODO
       e :: E
-      e = undefined -- fixme
+      e = foldl go DM.empty labelsModdedVars
+        where
+          go :: E -> (Label, [String]) -> E
+          go acc (l, vars) = foldl (addPhi l vars) acc (dfPlus dft l)
+
+          --  add vars to E for a given label
+          addPhi :: Label -> [String] -> E -> Label -> E
+          addPhi _ vars acc frontier =
+            let currentVars = DM.findWithDefault [] frontier acc
+                updatedVars = nub (currentVars ++ vars) -- impt: need dedup
+             in DM.insert frontier updatedVars acc
       -- Lab 3 Task 1.2 TODO
       paWithPhis :: [SSALabeledInstr]
       paWithPhis =
@@ -55,7 +65,8 @@ insertPhis pa dft g =
           ( \(l, i) -> case DM.lookup l e of
               Nothing -> (l, [], i)
               Just vars ->
-                let phis = undefined -- fixme
+                -- impt: also need to sort vars
+                let phis = map (\v -> PhiAssignment (Temp (AVar v)) [(p, AVar v) | p <- predecessors g l] (Temp (AVar v))) (sort vars)
                  in (l, phis, i)
           )
           pa
