@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE ImportQualifiedPost #-}
 
 module Lang.Simp.IR.DF where
 
@@ -141,7 +141,11 @@ inOrderTrav (Node v children) = v : concatMap inOrderTrav children
 -- | df local implementation from cytron's lemma 2
 -- | Lab 3 Task 1.1 TODO
 dfLocal :: Label -> DomTree -> CFG -> [Label]
-dfLocal = undefined -- fixme
+dfLocal x dt g =
+  -- get successors of x, then check if each succ is an immediate child of x
+  -- if y is strictly dominated by x, then ignore
+  let succs = successors g x
+   in filter (\y -> not (isChildOf y x dt)) succs
 
 -- | Build Dominance frontier table
 buildDFT :: DomTree -> CFG -> DFTable
@@ -152,7 +156,7 @@ buildDFT dt g = foldl go DM.empty (postOrderTrav dt)
       let local = dfLocal x dt g
           -- Lab 3 Task 1.1. TODO
           dfUp :: Label -> [Label]
-          dfUp = undefined -- fixme
+          dfUp u = [w | w <- DM.findWithDefault [] u acc, not (isChildOf w x dt)]
           up = concatMap dfUp (childOf x dt)
        in DM.insert x (sort (local ++ up)) acc
 
