@@ -1,3 +1,5 @@
+{-# LANGUAGE ImportQualifiedPost #-}
+
 module Lang.Simp.Semantics.LivenessAnalysis where
 
 import Control.Monad hiding (join)
@@ -17,7 +19,8 @@ type AbstractEnv = DM.Map Label AbstractState
 
 -- | join(s) = \sqbigcup_{t \in succ(s)} t
 join :: [AbstractState] -> AbstractState
-join = undefined -- fixme
+join = DS.unions
+
 -- Lab 3 Task 2.1 end
 
 type MonotoneFunction = AbstractEnv -> Either String AbstractEnv
@@ -41,16 +44,59 @@ genMonotoneFunction p =
       -- Lab 3 Task 2.2
       instrState :: AbstractEnv -> LabeledInstr -> Either String AbstractEnv
       -- \^ case l:t <- src:   s_l = join(s_l) - {t} \cup vars(src)
-      instrState acc (label, IMove (Temp (AVar t)) src) = do
-        let joinedSuccStates = joinSuccStates label acc
-        return (DM.insert label ((DS.delete t joinedSuccStates) `DS.union` (DS.fromList (vars src))) acc)
       -- \^ case l: t <- src1 op src2:  s_l = join(s_l) - {t} \cup vars(src1) \cup vars(src2)
       -- \^ case l: r <- src1 op src2:  s_l = join(s_l) \cup vars(src1) \cup vars(src2)
       -- \^ case l: ifn t goto l':  s_l = join(s_l) \cup {t}
       -- \^ other cases: s_l = join(s_l)
-      instrState acc (label, instr) = undefined -- fixme
-      -- Lab 3 Task 2.2 end
-   in \absEnv -> foldM instrState absEnv p
+      instrState acc (label, instr) =
+        let joinedSuccStates = joinSuccStates label acc
+         in case instr of
+              -- Case: l : ret, sl = {}
+              IRet ->
+                Right (DM.insert label DS.empty acc)
+              -- Case: l : t ← src, sl = join(sl) − {t} ∪ var(src)
+              IMove (Temp (AVar t)) src ->
+                let newState = DS.delete t joinedSuccStates `DS.union` DS.fromList (vars src)
+                 in Right (DM.insert label newState acc)
+              -- Case: l : t ← src1 op src2, sl = join(sl) − {t} ∪ var(src1) ∪ var(src2)
+              -- arithmetic ops + less than operator
+              IPlus (Temp (AVar t)) src1 src2 ->
+                let newState = DS.delete t joinedSuccStates `DS.union` DS.fromList (vars src1 ++ vars src2)
+                 in Right (DM.insert label newState acc)
+              IMinus (Temp (AVar t)) src1 src2 ->
+                let newState = DS.delete t joinedSuccStates `DS.union` DS.fromList (vars src1 ++ vars src2)
+                 in Right (DM.insert label newState acc)
+              IMult (Temp (AVar t)) src1 src2 ->
+                let newState = DS.delete t joinedSuccStates `DS.union` DS.fromList (vars src1 ++ vars src2)
+                 in Right (DM.insert label newState acc)
+              ILThan (Temp (AVar t)) src1 src2 ->
+                let newState = DS.delete t joinedSuccStates `DS.union` DS.fromList (vars src1 ++ vars src2)
+                 in Right (DM.insert label newState acc)
+              -- Case: l : r ← src, sl = join(sl) ∪ var(src)
+              IMove (Regstr r) src ->
+                let newState = joinedSuccStates `DS.union` DS.fromList (vars src)
+                 in Right (DM.insert label newState acc)
+              -- Case: l : r ← src1 op src2, sl = join(sl) ∪ var(src1) ∪ var(src2)
+              IPlus (Regstr r) src1 src2 ->
+                let newState = joinedSuccStates `DS.union` DS.fromList (vars src1 ++ vars src2)
+                 in Right (DM.insert label newState acc)
+              IMinus (Regstr r) src1 src2 ->
+                let newState = joinedSuccStates `DS.union` DS.fromList (vars src1 ++ vars src2)
+                 in Right (DM.insert label newState acc)
+              IMult (Regstr r) src1 src2 ->
+                let newState = joinedSuccStates `DS.union` DS.fromList (vars src1 ++ vars src2)
+                 in Right (DM.insert label newState acc)
+              ILThan (Regstr r) src1 src2 ->
+                let newState = joinedSuccStates `DS.union` DS.fromList (vars src1 ++ vars src2)
+                 in Right (DM.insert label newState acc)
+              -- Case: l : ifn t goto l′, sl = join(sl) ∪ {t}
+              IIfNot (Temp (AVar t)) _ ->
+                let newState = joinedSuccStates `DS.union` DS.singleton t
+                 in Right (DM.insert label newState acc)
+              -- other instructions, sl = join(sl)
+              _ -> Right (DM.insert label joinedSuccStates acc)
+   in -- Lab 3 Task 2.2 end
+      \absEnv -> foldM instrState absEnv p
 
 -- | Top level function for liveness analysis
 --  Peform livness analysis over a PA program `p` return an abstract environment mapping label to abstract states
